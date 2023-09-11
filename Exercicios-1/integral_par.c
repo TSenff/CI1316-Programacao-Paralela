@@ -2,6 +2,7 @@
 #include <omp.h>
 
 static long num_step = 100000;
+static int  max_thr  = 4;
 
 /*
     Integrando em paralelo
@@ -20,19 +21,15 @@ int main(){
     array[3] = 0.0;
     double step = 1.0/(double)num_step;
     
-    int max_thr = 4;
-
-
 
     #pragma omp parallel
     {
         double sum = 0.0;
-        for(int i=0 ; i<num_step;i++){
-            if(i%4 == omp_get_thread_num()){
+        for(int i=omp_get_thread_num() ; i<num_step ; i+=max_thr){
                 x = (i + 0.5) * step;
                 sum += 4.0/(1.0+x*x);
-            }
         }
+
         array[omp_get_thread_num()] = sum;
     }
     

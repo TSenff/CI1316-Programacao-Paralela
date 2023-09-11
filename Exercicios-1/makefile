@@ -22,4 +22,4 @@ clean:
 	rm -f *.o
 
 purge: clean
-	rm -f $(NAME1) $(NAME1)
+	rm -f $(NAME1) $(NAME2)
