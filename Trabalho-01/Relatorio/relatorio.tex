@@ -1,0 +1,60 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[utf8]{inputenc}
+
+
+\author{Thiago da Costa P. Senff}
+\title{Relatorio: Trabalho 1 \\ \large Paralelização do problema do caixeiro viajante usando OMP}
+
+
+\begin{document}
+
+    \maketitle
+    \newpage
+
+    \tableofcontents
+    \newpage
+    
+    \section{Algoritmo Sequencial}
+        O Algoritmo sequencial é bastante simples, ele resolve o problema
+        do caixeiro viajante na força bruta usando recurção para montar uma arvore onde cada
+        folha possui um dos possiveis caminhos e por fim verifica qual é o menor. A implementação do
+        algoritmo tem 3 detalhes importantes, primeiro ela faz cortes em caminhos que serão piores que o melhor caminho que ele ja achou anteriormente.
+        O algoritmo tambem utiliza uma heuristica que dá preferencia de escolha para a cidade mais proxima
+        quando adicionando uma nova cidade no caminho. Por ultimo vale dizer que o algoritmo faz uma implementação bastante
+        duvidosa quando verificando quais cidades já estão no caminho, ele faz a varredura do caminho inteiro verificando a existencia da cidade
+        isso poderia ser resolvido com um hash, um array com uma posição para cada cidade contendo 0 caso a cidade não esteja no caminho
+        e 1 caso a cidade já esteja no caminho, isso tornaria a verificação O(1) e tornaria o algoritmo muito mais eficiente.
+        Essa modificação não foi implementada por conta de limitações de testes, pois a entrada paralela ficaria muito rapida e poderia atrapalhar os testes com tempos muito pequenos.
+
+    \section{Estrategia de Parelização}
+        A estrategia de Parelização utilizada foi de percorrer a arvore em ramos separados paralelamente, utilizando o comando for do omp
+        na primeira iteração recursiva, assim cada thread cuida de arvores de tamanho n-1 paralelamente, essa divisão não é feita na mesma função com a função inicial.
+        Uma dificuldade que essa implementação enfrenta é manter o tamanho do caminho minimo para fazer os cortes, sendo necessario uma 
+        o uso de critical para o momento onde a distancia minima é verificada e atualizada. Foi considerado paralelizar a arvores em niveis 
+        inferiores utilizando tasks mas testes iniciais mostraram que em geral o tempo na minha maquina se manteve similar com alguns casos 
+        com variaçoes de 0 a 6 segundos para melhor e para pior, caso hajam mais nucleos de processamento disponiveis essa abordagem poderia se tornar viavel.
+
+    \section{Metodologia de Testes}
+        Para o teste foi feito um teste sobre 3 entradas diferentes, para o codigo paralelo o codigo foi rodado usando desde 1 processador até 4, o maximo da maquina, cada teste foi executado 20 vezes e estaremos olhando para a media deles,
+        foi garantido tambem que todos os testes tivessem uma duração maior que 10 segundos para diminuit possiveis influencias de processos externos.
+        Para os testes, foi inicialmente pensado em fazer uso do pior e melhor caso do algoritmo, essa ideia acabou sendo descartada, o teste de pior caso aumenta o tempo muito rapidamente
+        então para que o teste mais rapido tivesse no minimo os 10 segundos de tempo de execução o terceiro teste acabaria levando uma quantidade irrazoavel. Testar usando o melhor caso por outro lado é possivel porém 
+        cria uma grande vantagem para a execução sequencial, que ainda se demonstrou mais lenta mas demonstrando um speedup inferior que todos os outros testes iniciais feitos.
+        Foi tambem considerado, durante a parte de planejamento, remover a poda de subarvores com respostas piores que o otimo atual
+        o que faria os algoritmos tivessem tempo de execução somente baseado no tamanho da entrada. Essa ideia porem é uma grande desvantagem para o algoritmo sequencial, que alem de perder uma de suas 
+        poucas otimizações faria com que não fosse necessario usar critical na versão paralela do algoritmo, uma das poucas fontes de possiveis problemas que ele pode ter, além de tornar o algoritmo menos eficiente de forma geral.
+        No final a abordagem tomada foi de criar testes que tendem ao pior caso do algoritmo mas que ainda são mais faceis do que o verdadeiro pior caso, para alcançar isso
+        simplesmente garantimos que o algoritmo ira escolher uma cidade errada no inicio da arvore devido a heuristica de cidades mais proximas forçando ele a explorar combinações de caminhos errados. 
+        \subsection{Especificações da maquina}
+    \section{Analise Sequencial}
+    Rodando o algo
+
+    \section{Resultados}
+    \section{Analise Paralelo}
+    \section{Conclusão}
+
+
+
+
+\end{document}
