@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <time.h>
+
+clock_t start, end;
+clock_t start_middle, end_middle;
+
 
 int min_distance;
 int nb_towns;
@@ -119,8 +124,13 @@ int run_tsp() {
     
     path = (int*) malloc(sizeof(int) * nb_towns);
     path[0] = 0;
-    
+    /*Finaliza tempo não paralelizavel inicial / começo da area paralelizavel*/
+    start_middle = clock();
+
     tsp (1, 0, path);
+
+    /*Inicia tempo não paralelizavel final / fim da area paralelizavel*/
+    end_middle = clock();
 
     free(path);
     for (i = 0; i < nb_towns; i++)
@@ -131,10 +141,20 @@ int run_tsp() {
 }
 
 int main (int argc, char **argv) {
-    int num_instances, st;
-    st = scanf("%u", &num_instances);
-    if (st != 1) exit(1);
-    while(num_instances-- > 0)
-        printf("%d\n", run_tsp());
+    /*Tempo inicial do alg*/
+    start = clock();
+    
+    int resultado = run_tsp();
+    
+    /* Finaliza tempo total*/
+    end = clock();
+
+    /* Valor alcançado*/
+    printf("%d\n", resultado);
+
+    /* Tempo total*/
+    printf("%f\n", (float)(end - start) / CLOCKS_PER_SEC );
+    /* Tempo não paralelizado*/
+    printf("%f\n", (float)(start_middle - start) / CLOCKS_PER_SEC +  (float)(end - end_middle) / CLOCKS_PER_SEC );
     return 0;
 }

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <string.h>
 #include <omp.h>
 
 double start, end;
@@ -15,6 +16,7 @@ double start_middle, end_middle;
 
 int min_distance;
 int nb_towns;
+int *task_path;
 
 typedef struct {
     int to_town;
@@ -36,6 +38,7 @@ void tsp_rec (int depth, int current_length, int *path) {
     if (current_length >= min_distance) return;
     if (depth == nb_towns) {
         current_length += dist_to_origin[path[nb_towns - 1]];
+        /* Peguei essa ideia da nossa roda de conversa durante a aula */
         if (current_length < min_distance)
             #pragma omp critical
             if (current_length < min_distance)
@@ -55,24 +58,38 @@ void tsp_rec (int depth, int current_length, int *path) {
     }
 }
 
-void tsp () {
-    omp_set_dynamic(0);
-    #pragma omp parallel default(none) shared(min_distance,nb_towns, d_matrix) num_threads(4)
-    {
-        int *path = (int*) malloc(sizeof(int) * nb_towns);
-        path[0] = 0;
-        int town, dist;
-        #pragma omp for schedule(dynamic)
+void tsp (int depth, int current_length, int *path) {
+    int town, me, dist;
+    me = path[depth - 1];
+    /* Desce até o nivel que será paralelizado */
+    if(depth < 2){
         for (int i = 0; i < nb_towns; i++) {
-            town = d_matrix[0][i].to_town;
-            if (!present (town, 1, path)) {
-                path[1] = town;
-                dist = d_matrix[0][i].dist;
-                tsp_rec (2, 0 + dist, path);
+            town = d_matrix[me][i].to_town;
+            if (!present (town, depth, path)) {
+                path[depth] = town;
+                dist = d_matrix[me][i].dist;
+                tsp (depth + 1, current_length + dist, path);
             }
         }
-        free(path);
+    } 
+    else{
+        /* Cria tasks no nivel sendo paralelizado*/
+        for (int i = 0; i < nb_towns; i++) {
+            town = d_matrix[me][i].to_town;
+            if (!present (town, depth, path)) {
+                path[depth] = town;
+                dist = d_matrix[me][i].dist;
+                task_path = (int*) malloc(sizeof(int) * nb_towns);
+                memcpy(task_path,path,sizeof(int) * nb_towns);
+                #pragma omp task default(none) firstprivate(task_path,current_length,dist,depth) shared(min_distance,nb_towns, d_matrix, dist_to_origin)
+                {
+                    tsp_rec (depth + 1, current_length + dist, task_path);
+                    free(task_path);
+                }
+            }
+        }
     }
+
 }
 
 void greedy_shortest_first_heuristic(int *x, int *y) {
@@ -140,17 +157,26 @@ void init_tsp() {
 }
 
 int run_tsp() {
-    int i;
+    int i, *path;
 
     init_tsp();
     
+    path = (int*) malloc(sizeof(int) * nb_towns);
+    path[0] = 0;
     
     /*Finaliza tempo não paralelizavel inicial / começo da area paralelizavel*/
     start_middle = omp_get_wtime();
-    tsp ();
+        #pragma omp parallel shared(min_distance,nb_towns, d_matrix, dist_to_origin) private(task_path) 
+        {
+            #pragma omp single
+            {
+                tsp (1, 0, path);
+            }
+        }
     /*Inicia tempo não paralelizavel final / fim da area paralelizavel*/
     end_middle = omp_get_wtime();
 
+    free(path);
     for (i = 0; i < nb_towns; i++)
         free(d_matrix[i]);
     free(d_matrix);
