@@ -13,7 +13,6 @@
 clock_t start, end;
 clock_t start_middle, end_middle;
 
-
 int min_distance;
 int nb_towns;
 
@@ -24,30 +23,25 @@ typedef struct {
 
 d_info **d_matrix;
 int *dist_to_origin;
+char *present;
 
-int present (int town, int depth, int *path) {
+void tsp (int depth, int current_length, int last_town) {
     int i;
-    for (i = 0; i < depth; i++)
-        if (path[i] == town) return 1;
-    return 0;
-}
-
-void tsp (int depth, int current_length, int *path) {
-    int i;
-    if (current_length >= min_distance) return;
+    if (current_length >= min_distance) 
+        return;
     if (depth == nb_towns) {
-        current_length += dist_to_origin[path[nb_towns - 1]];
+        current_length += dist_to_origin[last_town];
         if (current_length < min_distance)
             min_distance = current_length;
     } else {
-        int town, me, dist;
-        me = path[depth - 1];
+        int town, dist;
         for (i = 0; i < nb_towns; i++) {
-            town = d_matrix[me][i].to_town;
-            if (!present (town, depth, path)) {
-                path[depth] = town;
-                dist = d_matrix[me][i].dist;
-                tsp (depth + 1, current_length + dist, path);
+            town = d_matrix[last_town][i].to_town;
+            if (!present[town]) {
+                dist = d_matrix[last_town][i].dist;
+                present[town] = 1;
+                tsp (depth + 1, current_length + dist, town);
+                present[town] = 0;
             }
         }
     }
@@ -113,26 +107,27 @@ void init_tsp() {
     
     greedy_shortest_first_heuristic(x, y);
     
+    present = calloc(nb_towns,sizeof(char));
+    present[0] = 1;
+
     free(x);
     free(y);
 }
 
 int run_tsp() {
-    int i, *path;
+    int i;
 
     init_tsp();
     
-    path = (int*) malloc(sizeof(int) * nb_towns);
-    path[0] = 0;
+    
     /*Finaliza tempo não paralelizavel inicial / começo da area paralelizavel*/
     start_middle = clock();
 
-    tsp (1, 0, path);
+    tsp (1, 0, 0);
 
     /*Inicia tempo não paralelizavel final / fim da area paralelizavel*/
     end_middle = clock();
 
-    free(path);
     for (i = 0; i < nb_towns; i++)
         free(d_matrix[i]);
     free(d_matrix);

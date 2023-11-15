@@ -1,7 +1,7 @@
 FLAGS=
 
 CC=gcc
-
+MPI=mpicc
 RM=rm -f
 
 EXEC=tsp
@@ -13,11 +13,10 @@ $(EXEC):
 	$(CC) $(FLAGS) $(EXEC).o -lm -o $(EXEC)
 
 $(PAR):
-	$(CC) $(FLAGS) $(PAR).c -c -lm -o $(PAR).o
-	$(CC) $(FLAGS) $(PAR).o -lm -o $(PAR)
+	$(MPI) $(FLAGS) $(PAR).c -lm -o $(PAR)
 
 run:
-	./teste.sh
+	mpirun --hostfile host.txt -np 4 ./tsp_par < tsp1.in
 
 clean:
 	$(RM) $(EXEC).o $(EXEC) $(PAR).o $(PAR)

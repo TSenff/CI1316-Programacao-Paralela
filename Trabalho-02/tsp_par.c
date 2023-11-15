@@ -8,13 +8,16 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
-#include <omp.h>
+#include <time.h>
+#include <mpi.h>
 
-double start, end;
-double start_middle, end_middle;
+clock_t start, end;
+clock_t start_middle, end_middle;
 
-int min_distance;
-int nb_towns;
+int nb_towns, min_distance;
+int global_update_counter, global_min_distance;
+
+#define UPDATE_INTERVAL 500
 
 typedef struct {
     int to_town;
@@ -23,55 +26,35 @@ typedef struct {
 
 d_info **d_matrix;
 int *dist_to_origin;
+char *present;
 
-int present (int town, int depth, int *path) {
+void tsp (int depth, int current_length, int last_town) {
     int i;
-    for (i = 0; i < depth; i++)
-        if (path[i] == town) return 1;
-    return 0;
-}
-
-void tsp_rec (int depth, int current_length, int *path) {
-    int i;
-    if (current_length >= min_distance) return;
+    if (current_length >= min_distance) 
+        return;
     if (depth == nb_towns) {
-        current_length += dist_to_origin[path[nb_towns - 1]];
-        if (current_length < min_distance)
-            #pragma omp critical
-            if (current_length < min_distance)
-                min_distance = current_length;
-
-    } else {
-        int town, me, dist;
-        me = path[depth - 1];
-        for (i = 0; i < nb_towns; i++) {
-            town = d_matrix[me][i].to_town;
-            if (!present (town, depth, path)) {
-                path[depth] = town;
-                dist = d_matrix[me][i].dist;
-                tsp_rec (depth + 1, current_length + dist, path);
-            }
+        current_length += dist_to_origin[last_town];
+        if (current_length < min_distance){
+            min_distance = current_length;
         }
+
+        if (global_update_counter == UPDATE_INTERVAL){
+            global_update_counter = -1;
+        }
+        global_update_counter++;
+
     }
-}
-
-void tsp () {
-    omp_set_dynamic(0);
-    #pragma omp parallel default(none) shared(min_distance,nb_towns, d_matrix) num_threads(4)
-    {
-        int *path = (int*) malloc(sizeof(int) * nb_towns);
-        path[0] = 0;
+    else {
         int town, dist;
-        #pragma omp for schedule(dynamic)
-        for (int i = 0; i < nb_towns; i++) {
-            town = d_matrix[0][i].to_town;
-            if (!present (town, 1, path)) {
-                path[1] = town;
-                dist = d_matrix[0][i].dist;
-                tsp_rec (2, 0 + dist, path);
+        for (i = 0; i < nb_towns; i++) {
+            town = d_matrix[last_town][i].to_town;
+            if (!present[town]) {
+                dist = d_matrix[last_town][i].dist;
+                present[town] = 1;
+                tsp (depth + 1, current_length + dist, town);
+                present[town] = 0;
             }
         }
-        free(path);
     }
 }
 
@@ -110,15 +93,19 @@ void greedy_shortest_first_heuristic(int *x, int *y) {
     free(tempdist);
 }
 
-void init_tsp() {
+void init_tsp(int my_rank, int n_procs) {
     int i, st;
     int *x, *y;
 
     min_distance = INT_MAX;
 
-    st = scanf("%u", &nb_towns);
-    if (st != 1) exit(1);
- 
+    if(!my_rank){
+        st = scanf("%u", &nb_towns);
+        if (st != 1) exit(1);
+    }
+
+    MPI_Bcast(&nb_towns,1,MPI_INT,0,MPI_COMM_WORLD);
+
     d_matrix = (d_info**) malloc (sizeof(d_info*) * nb_towns);
     for (i = 0; i < nb_towns; i++)
         d_matrix[i] = (d_info*) malloc (sizeof(d_info) * nb_towns);
@@ -127,29 +114,53 @@ void init_tsp() {
     x = (int*) malloc(sizeof(int) * nb_towns);
     y = (int*) malloc(sizeof(int) * nb_towns);
     
-
-    for (i = 0; i < nb_towns; i++) {
-        st = scanf("%u %u", x + i, y + i);
-        if (st != 2) exit(1);
+    if(!my_rank){
+        for (i = 0; i < nb_towns; i++) {
+            st = scanf("%u %u", x + i, y + i);
+            if (st != 2) exit(1);
+        }
     }
-    
+
+    MPI_Bcast(x,nb_towns,MPI_INT,0,MPI_COMM_WORLD);
+    MPI_Bcast(y,nb_towns,MPI_INT,0,MPI_COMM_WORLD);
+
+
     greedy_shortest_first_heuristic(x, y);
     
+
     free(x);
     free(y);
 }
 
-int run_tsp() {
-    int i;
+int run_tsp(int my_rank, int n_procs) {
+    int i, town;
 
-    init_tsp();
-    
+    init_tsp(my_rank,n_procs);
+
+    present = calloc(nb_towns,sizeof(char));
+    present[0] = 1;
     
     /*Finaliza tempo não paralelizavel inicial / começo da area paralelizavel*/
-    start_middle = omp_get_wtime();
-    tsp ();
+    start_middle = clock();
+
+    int block_size = nb_towns/n_procs;
+    int residue    = nb_towns%n_procs;
+    int block_start = block_size*my_rank + 1;
+    int block_end = block_start + block_size;
+    printf("My rank is %d, I start at %d and end at %d\n",my_rank,block_start,block_end);
+
+    if(my_rank < (residue-1))
+        block_end++;
+    for(i = block_start; i < block_end; i++ ){
+        town = d_matrix[0][i].to_town;
+        present[town] = 1;
+        tsp (2,d_matrix[0][i].dist, town);
+        present[town] = 0;
+    }
+
+    MPI_Allreduce(&min_distance, &min_distance, 1,MPI_INT, MPI_MIN, MPI_COMM_WORLD);
     /*Inicia tempo não paralelizavel final / fim da area paralelizavel*/
-    end_middle = omp_get_wtime();
+    end_middle = clock();
 
     for (i = 0; i < nb_towns; i++)
         free(d_matrix[i]);
@@ -160,18 +171,28 @@ int run_tsp() {
 
 int main (int argc, char **argv) {
     /*Tempo inicial do alg*/
-    start = omp_get_wtime();
+    start = clock();
     
-    int resultado = run_tsp();
-    
-    /* Finaliza tempo total*/
-    end = omp_get_wtime();
+    int my_rank, n_procs;
+    MPI_Status status;
 
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+
+    int resultado = run_tsp(my_rank, n_procs);
     /* Valor alcançado*/
     printf("%d\n", resultado);
+    /* Finaliza tempo total*/
+    MPI_Finalize();
+
+    end = clock();
+
+
+
     /* Tempo total*/
-    printf("%f\n", end - start);
-    /* Tempo paralelizado*/
-    printf("%f\n", (end_middle-start_middle));
+    printf("%f\n", (float)(end - start) / CLOCKS_PER_SEC );
+    /* Tempo não paralelizado*/
+    printf("%f\n", (float)(start_middle - start) / CLOCKS_PER_SEC +  (float)(end - end_middle) / CLOCKS_PER_SEC );
     return 0;
 }
