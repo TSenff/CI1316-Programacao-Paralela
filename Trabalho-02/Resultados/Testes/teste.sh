@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo "## Iniciado em $(date +"%D %T" )"
+
+echo "## Sequencial Inicializado"
 
 for TESTE in tsp*.in; do
     for ITER in {0..19}; do
@@ -8,34 +11,17 @@ for TESTE in tsp*.in; do
     done
 done
 
-for TESTE in tsp*.in; do
-    for ITER in {0..19}; do
-        echo "# $TESTE $ITER"    >> resultado_paralelo_4_core.txt
-        ./tsp_par_4  < $TESTE    >> resultado_paralelo_4_core.txt
+echo "## Sequencial Completo"
+
+for PROCS in 2 4 8  
+do
+    echo "## $PROCS Processos Inicializado"
+    for TESTE in tsp*.in; do
+        for ITER in {0..19}; do
+            mpirun --hostfile "host_$PROCS.txt" -np $PROCS ./tsp_par_cut < $TESTE    >> resultado_paralelo_$PROCS.txt
+        done
     done
+    echo "## $PROCS Processos Completos"
 done
 
-
-for TESTE in tsp*.in; do
-    for ITER in {0..19}; do
-        echo "# $TESTE $ITER"  >> resultado_paralelo_3_core.txt
-        ./tsp_par_3  < $TESTE  >> resultado_paralelo_3_core.txt
-    done
-done
-
-for TESTE in tsp*.in; do
-    for ITER in {0..19}; do
-        echo "# $TESTE $ITER"  >> resultado_paralelo_2_core.txt
-        ./tsp_par_2  < $TESTE  >> resultado_paralelo_2_core.txt
-    done
-done
-
-for TESTE in tsp*.in; do
-    for ITER in {0..19}; do
-        echo "# $TESTE $ITER"    >> resultado_paralelo_1_core.txt
-        ./tsp_par_1  < $TESTE    >> resultado_paralelo_1_core.txt
-    done
-done
-
-
-
+echo "## Iniciado em $(date +"%D %T" )"

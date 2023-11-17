@@ -1,0 +1,2 @@
+localhost slots=1
+h60 slots=1

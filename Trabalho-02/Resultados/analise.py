@@ -11,6 +11,7 @@ total_time    = []
 partial_time  = []
 
 # Abre o arquivo e percorre linha a linha
+
 with open(sys.argv[1],"r") as file:
     for line in file:
         # nome e iteração do teste

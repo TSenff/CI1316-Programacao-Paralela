@@ -1,2 +1,4 @@
 localhost
 h60
+h10
+h8

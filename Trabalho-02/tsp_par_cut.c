@@ -11,12 +11,11 @@
 #include <time.h>
 #include <mpi.h>
 
-clock_t start, end;
-clock_t start_middle, end_middle;
+double start, end;
 
 int nb_towns, min_distance;
-int update_verify_counter,global_update_counter, global_min_distance;
-int communication_flag = 0;
+int global_update_counter, global_min_distance;
+int communication_flag;
 
 MPI_Request request;
 #define UPDATE_INTERVAL 100000
@@ -44,16 +43,15 @@ void tsp (int depth, int current_length, int last_town) {
         if (current_length < min_distance){
             min_distance = current_length;
         }
+
         global_update_counter++;
         // Verifica periodicamente se foi finalizado o reduce em global_min
         if(communication_flag){
-            update_verify_counter++;
-            if ( update_verify_counter > VERIFY_INTERVAL){
+            if ( global > VERIFY_INTERVAL){
                 MPI_Test(&request,&i,MPI_STATUS_IGNORE);
                 if(i && global_min_distance < min_distance)
                     min_distance = global_min_distance;
                 communication_flag    = 0;
-                update_verify_counter = 0;
             }
         }
         else{
@@ -66,7 +64,6 @@ void tsp (int depth, int current_length, int last_town) {
                 }
             }
         }
-
 
     }
     else {
@@ -149,6 +146,8 @@ void init_tsp(int my_rank, int n_procs) {
     MPI_Bcast(x,nb_towns,MPI_INT,0,MPI_COMM_WORLD);
     MPI_Bcast(y,nb_towns,MPI_INT,0,MPI_COMM_WORLD);
 
+    global_update_counter = 0;
+    communication_flag = 0;
 
     greedy_shortest_first_heuristic(x, y);
     
@@ -161,26 +160,23 @@ int run_tsp(int my_rank, int n_procs) {
     int i, town;
 
     init_tsp(my_rank,n_procs);
-    global_update_counter = 0;
 
     present = calloc(nb_towns,sizeof(char));
     present[0] = 1;
     
-    /*Finaliza tempo não paralelizavel inicial / começo da area paralelizavel*/
-    start_middle = clock();
-
     int block_size = (nb_towns-1)/n_procs;
     int residue    = (nb_towns-1)%n_procs;
     int block_start = block_size*my_rank + 1;
     int block_end = block_start + block_size-1;
 
-    if(my_rank < (residue))
-        block_end++;
-    if( my_rank >= (residue) ){
+    if(my_rank < (residue)){
+        block_end   += my_rank + 1;
+        block_start += my_rank;
+    }
+    else{
         block_start += residue;
         block_end   += residue;
     }
-    printf("My rank is %d, I start at %d and end at %d\n",my_rank,block_start,block_end);
 
     for(i = block_start; i <= block_end; i++ ){
         town = d_matrix[0][i].to_town;
@@ -191,8 +187,7 @@ int run_tsp(int my_rank, int n_procs) {
 
     MPI_Allreduce(&min_distance, &min_distance, 1,MPI_INT, MPI_MIN, MPI_COMM_WORLD);
     /*Inicia tempo não paralelizavel final / fim da area paralelizavel*/
-    end_middle = clock();
-
+    free(present);
     for (i = 0; i < nb_towns; i++)
         free(d_matrix[i]);
     free(d_matrix);
@@ -201,8 +196,6 @@ int run_tsp(int my_rank, int n_procs) {
 }
 
 int main (int argc, char **argv) {
-    /*Tempo inicial do alg*/
-    start = clock();
 
     int my_rank, n_procs;
     MPI_Status status;
@@ -211,17 +204,21 @@ int main (int argc, char **argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 
+    start = MPI_Wtime(); 
+
+
     int resultado = run_tsp(my_rank, n_procs);
-    end = clock();
 
-    printf("%d\n", resultado);
-    /* Tempo total*/
-    printf("%f\n", (float)(end - start) / CLOCKS_PER_SEC );
-    /* Tempo não paralelizado*/
-    printf("%f\n", (float)(start_middle - start) / CLOCKS_PER_SEC +  (float)(end - end_middle) / CLOCKS_PER_SEC );
-
-    /* Valor alcançado*/
     /* Finaliza tempo total*/
+//    MPI_Barrier(MPI_COMM_WORLD); 
+    end = MPI_Wtime(); 
+
+    if(!my_rank){
+        printf("## Resultados\n");
+        printf("%d\n", resultado);
+        printf("%f\n", (end - start) );
+    }
+
     MPI_Finalize();
 
     return 0;

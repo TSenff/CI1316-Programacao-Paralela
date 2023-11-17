@@ -16,7 +16,7 @@ $(PAR):
 	$(MPI) $(FLAGS) $(PAR).c -lm -o $(PAR)
 
 run:
-	mpirun --hostfile host.txt -np 4 ./$(PAR) < tsp1.in
+	mpirun --hostfile host.txt -np 8 ./$(PAR) < tsp1.in
 
 clean:
 	$(RM) $(EXEC).o $(EXEC) $(PAR).o $(PAR)
