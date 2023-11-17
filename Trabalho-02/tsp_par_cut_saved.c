@@ -159,7 +159,9 @@ int run_tsp(int my_rank, int n_procs) {
 
     present = calloc(nb_towns,sizeof(char));
     present[0] = 1;
-    
+    printf("0::%d\n",d_matrix[0][0].to_town);
+    printf("1::%d\n",d_matrix[1][0].to_town);
+    printf("2::%d\n",d_matrix[2][0].to_town);
     for(i = my_rank+1; i < nb_towns; i+=n_procs ){
         town = d_matrix[0][i].to_town;
         present[town] = 1;
